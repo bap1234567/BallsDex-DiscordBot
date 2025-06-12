@@ -1,0 +1,42 @@
+import discord, random
+from discord import app_commands
+from discord.ext import commands
+from ballsdex.core.models import BallInstance, Player, balls
+from ballsdex.core.bot import BallsDexBot
+from ballsdex.settings import settings
+
+class Daily(commands.Cog):
+    def __init__(self, bot: BallsDexBot):
+        self.bot = bot
+
+    @app_commands.command()
+    @app_commands.checks.cooldown(1, 86400, key=lambda i: i.user.id)
+    async def daily(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        player, _ = await Player.get_or_create(discord_id=interaction.user.id)
+        available_balls = [b for b in balls.values() if b.enabled and b.rarity <= 3.0]
+
+        attack_bonus = random.randint(-settings.max_attack_bonus, settings.max_attack_bonus)
+        health_bonus = random.randint(-settings.max_health_bonus, settings.max_health_bonus)
+
+        ball_instance = await BallInstance.create(
+            ball=ball,
+            player=player,
+            attack_bonus=attack_bonus,
+            health_bonus=health_bonus,
+        )
+
+        _, file, _ = await ball_instance.prepare_for_message(interaction)
+
+        embed = discord.Embed(
+            title=f"⚽ You got {ball.country}!",
+            description=(
+                f"**⭐ Rarity:** {ball.rarity}\n"
+                f"**♥️ Health:** {ball.health}\n"
+                f"**🗡️ Attack:** {ball.attack}"
+            ),
+            color=discord.Color.blue()
+        )
+        embed.set_image(url="attachment://ball.png")
+        await interaction.followup.send(embed=embed, file=file)
